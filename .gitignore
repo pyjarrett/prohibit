@@ -1,0 +1,13 @@
+# Generated files
+debug/
+target/
+*.pdb
+
+# Lock dependencies since this is an executable.
+Cargo.lock
+
+# rustfmt backup files
+**/*.rs.bk
+
+# IDE files
+.idea/
