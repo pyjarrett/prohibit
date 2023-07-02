@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Result;
 use std::io::BufRead;
 use std::path::Path;
+use std::process::exit;
 use std::{fs::File, io::BufReader};
 
 /// A specific target which requires additional checks.
@@ -42,7 +43,7 @@ fn make_patterns(v: &Vec<String>) -> Vec<Regex> {
     regexes
 }
 
-fn check_file(entry: DirEntry, regexes: &Vec<Regex>, overrule: &str) -> bool {
+fn check_file(entry: &DirEntry, regexes: &Vec<Regex>, overrule: &str) -> bool {
     match entry.file_type() {
         Some(t) => {
             if t.is_file() {
@@ -66,9 +67,10 @@ fn check_file(entry: DirEntry, regexes: &Vec<Regex>, overrule: &str) -> bool {
                     }
                     return true;
                 }
-                return false;
+                false
+            } else {
+                true
             }
-            false
         }
         None => false,
     }
@@ -88,7 +90,13 @@ fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>, overrule: &
         for d in walk {
             match d {
                 Ok(entry) => {
-                    success &= check_file(entry, &extra_patterns, overrule);
+                    let file_success = check_file(&entry, &extra_patterns, overrule);
+                    if !file_success {
+                        eprintln!(
+                            "File check failed on {}",
+                            entry.path().to_str().unwrap_or("<unknown file>")
+                        )
+                    }
                 }
                 Err(err) => {
                     println!("Error {:?}", err);
@@ -121,9 +129,19 @@ fn main() {
         if let Ok(configuration) = read_result {
             let common_patterns = make_patterns(&configuration.global);
 
+            let mut pass = true;
+
             // Evaluate every specific target.
             for specific in configuration.specific {
-                check_specific(&specific, &common_patterns, configuration.overrule.as_str());
+                pass &=
+                    check_specific(&specific, &common_patterns, configuration.overrule.as_str());
+            }
+
+            if pass {
+                exit(0)
+            } else {
+                eprintln!("Check failed.");
+                exit(1)
             }
         } else {
             eprintln!("Invalid configuration.");
