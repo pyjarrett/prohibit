@@ -97,6 +97,7 @@ fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>) -> bool {
 #[command(version = "0.1")]
 #[command(author, version, about, long_about=None)]
 struct Args {
+    #[arg(default_value = "./prohibited.json")]
     config: String,
 }
 
