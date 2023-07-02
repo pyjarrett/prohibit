@@ -1,3 +1,4 @@
+use clap::Parser;
 use ignore::{DirEntry, WalkBuilder};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -88,12 +89,23 @@ fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>) -> bool {
             }
         }
     }
-    return true;
+    return success;
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "Prohibit")]
+#[command(version = "0.1")]
+#[command(author, version, about, long_about=None)]
+struct Args {
+    config: String,
 }
 
 fn main() {
-    let path = Path::new(r"D:\dev\games\paperspaceships\scripts\prohibited.json");
-    if let Ok(file) = File::open(path) {
+    // Path::new(r"D:\dev\games\paperspaceships\scripts\prohibited.json");
+    let args = Args::parse();
+
+    let path = args.config;
+    if let Ok(file) = File::open(&path) {
         let reader = BufReader::new(file);
         let read_result: Result<Configuration> = serde_json::from_reader(reader);
 
