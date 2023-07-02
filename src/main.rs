@@ -7,19 +7,21 @@ use std::io::BufRead;
 use std::path::Path;
 use std::{fs::File, io::BufReader};
 
+/// A specific target which requires additional checks.
 #[derive(Serialize, Deserialize, Debug)]
 struct Specific {
     targets: Vec<String>,
     patterns: Vec<String>,
 }
 
+/// Top level file configuration.
 #[derive(Serialize, Deserialize, Debug)]
 struct Configuration {
     /// Used to mark a line as being overruled..
     overrule: String,
 
     /// Patterns which apply everywhere.
-    everywhere: Vec<String>,
+    global: Vec<String>,
 
     /// Patterns which only apply in specific directories, or to specific files
     specific: Vec<Specific>,
@@ -46,13 +48,21 @@ fn check_file(entry: DirEntry, regexes: &Vec<Regex>, overrule: &str) -> bool {
             if t.is_file() {
                 if let Ok(file) = File::open(entry.path()) {
                     let reader = BufReader::new(file);
+                    let mut line_number = 1;
                     for line in reader.lines().flatten() {
                         for r in regexes {
                             if r.is_match(line.as_str()) && !line.contains(overrule) {
-                                println!("Prohibited value found: {:?}", r.as_str());
+                                println!(
+                                    "Prohibited value found: \"{}\" at {}:{}",
+                                    r.as_str(),
+                                    entry.path().to_str().unwrap_or("<unknown path>"),
+                                    line_number
+                                );
+                                println!("{}\n", line);
                                 return false;
                             }
                         }
+                        line_number += 1;
                     }
                     return true;
                 }
@@ -87,7 +97,7 @@ fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>, overrule: &
             }
         }
     }
-    return success;
+    success
 }
 
 #[derive(Parser, Debug)]
@@ -109,12 +119,14 @@ fn main() {
 
         // Read the configuration.
         if let Ok(configuration) = read_result {
-            let common_patterns = make_patterns(&configuration.everywhere);
+            let common_patterns = make_patterns(&configuration.global);
 
             // Evaluate every specific target.
             for specific in configuration.specific {
                 check_specific(&specific, &common_patterns, configuration.overrule.as_str());
             }
+        } else {
+            eprintln!("Invalid configuration.");
         }
     } else {
         println!("Could not open configuration file {:?}", path);
