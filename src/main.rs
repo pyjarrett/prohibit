@@ -15,8 +15,8 @@ struct Specific {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Configuration {
-    /// Used to mark a line as being overridden.
-    r#override: String,
+    /// Used to mark a line as being overruled..
+    overrule: String,
 
     /// Patterns which apply everywhere.
     everywhere: Vec<String>,
@@ -37,22 +37,20 @@ fn make_patterns(v: &Vec<String>) -> Vec<Regex> {
             }
         }
     }
-    return regexes;
+    regexes
 }
 
-fn check_file(entry: DirEntry, regexes: &Vec<Regex>) -> bool {
+fn check_file(entry: DirEntry, regexes: &Vec<Regex>, overrule: &str) -> bool {
     match entry.file_type() {
         Some(t) => {
             if t.is_file() {
                 if let Ok(file) = File::open(entry.path()) {
                     let reader = BufReader::new(file);
-                    for maybe_line in reader.lines() {
-                        if let Ok(line) = maybe_line {
-                            for r in regexes {
-                                if r.is_match(line.as_str()) {
-                                    println!("Prohibited value found: {:?}", r.as_str());
-                                    return false;
-                                }
+                    for line in reader.lines().flatten() {
+                        for r in regexes {
+                            if r.is_match(line.as_str()) && !line.contains(overrule) {
+                                println!("Prohibited value found: {:?}", r.as_str());
+                                return false;
                             }
                         }
                     }
@@ -60,13 +58,13 @@ fn check_file(entry: DirEntry, regexes: &Vec<Regex>) -> bool {
                 }
                 return false;
             }
-            return false;
+            false
         }
         None => false,
     }
 }
 
-fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>) -> bool {
+fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>, overrule: &str) -> bool {
     let mut extra_patterns = make_patterns(&specific.patterns);
 
     for r in common_patterns {
@@ -80,7 +78,7 @@ fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>) -> bool {
         for d in walk {
             match d {
                 Ok(entry) => {
-                    success &= check_file(entry, &extra_patterns);
+                    success &= check_file(entry, &extra_patterns, overrule);
                 }
                 Err(err) => {
                     println!("Error {:?}", err);
@@ -102,7 +100,6 @@ struct Args {
 }
 
 fn main() {
-    // Path::new(r"D:\dev\games\paperspaceships\scripts\prohibited.json");
     let args = Args::parse();
 
     let path = args.config;
@@ -116,10 +113,10 @@ fn main() {
 
             // Evaluate every specific target.
             for specific in configuration.specific {
-                check_specific(&specific, &common_patterns);
+                check_specific(&specific, &common_patterns, configuration.overrule.as_str());
             }
         }
     } else {
-        println!("Could not open file {:?}", path);
+        println!("Could not open configuration file {:?}", path);
     }
 }
