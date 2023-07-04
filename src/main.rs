@@ -43,37 +43,38 @@ fn make_patterns(v: &Vec<String>) -> Vec<Regex> {
     regexes
 }
 
-fn check_file(entry: &DirEntry, regexes: &Vec<Regex>, overrule: &str) -> bool {
-    match entry.file_type() {
-        Some(t) => {
-            if t.is_file() {
-                if let Ok(file) = File::open(entry.path()) {
-                    let reader = BufReader::new(file);
-                    let mut line_number = 1;
-                    for line in reader.lines().flatten() {
-                        for r in regexes {
-                            if r.is_match(line.as_str()) && !line.contains(overrule) {
-                                println!(
-                                    "Prohibited value found: \"{}\" at {}:{}",
-                                    r.as_str(),
-                                    entry.path().to_str().unwrap_or("<unknown path>"),
-                                    line_number
-                                );
-                                println!("{}\n", line);
-                                return false;
-                            }
-                        }
-                        line_number += 1;
+struct ProhibitedResult {
+    pub line_number: u32,
+    pub line: String,
+    pub pattern: String,
+}
+
+fn check_file(entry: &DirEntry, regexes: &Vec<Regex>, overrule: &str) -> Vec<ProhibitedResult> {
+    let mut results = Vec::new();
+
+    if let Some(t) = entry.file_type() {
+        if !t.is_file() {
+            return results;
+        }
+
+        if let Ok(file) = File::open(entry.path()) {
+            let reader = BufReader::new(file);
+            let mut line_number = 1;
+            for line in reader.lines().flatten() {
+                for r in regexes {
+                    if r.is_match(line.as_str()) && !line.contains(overrule) {
+                        results.push(ProhibitedResult {
+                            line_number,
+                            line: line.clone(),
+                            pattern: r.as_str().to_string(),
+                        });
                     }
-                    return true;
                 }
-                false
-            } else {
-                true
+                line_number += 1;
             }
         }
-        None => false,
     }
+    results
 }
 
 fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>, overrule: &str) -> bool {
@@ -90,12 +91,22 @@ fn check_specific(specific: &Specific, common_patterns: &Vec<Regex>, overrule: &
         for d in walk {
             match d {
                 Ok(entry) => {
-                    let file_success = check_file(&entry, &extra_patterns, overrule);
-                    if !file_success {
+                    let errors = check_file(&entry, &extra_patterns, overrule);
+                    if !errors.is_empty() {
+                        success = false;
                         eprintln!(
                             "File check failed on {}",
                             entry.path().to_str().unwrap_or("<unknown file>")
-                        )
+                        );
+                        for prohibition in errors {
+                            println!(
+                                "Prohibited value found: \"{}\" at {}:{}",
+                                prohibition.pattern,
+                                entry.path().to_str().unwrap_or("<unknown path>"),
+                                prohibition.line_number
+                            );
+                            println!("{}\n", prohibition.line);
+                        }
                     }
                 }
                 Err(err) => {
