@@ -28,6 +28,7 @@ struct Configuration {
     specific: Vec<Specific>,
 }
 
+/// Regex doesn't have serialization.
 fn make_patterns(v: &Vec<String>) -> Vec<Regex> {
     let mut regexes = Vec::new();
     for s in v {
@@ -43,6 +44,7 @@ fn make_patterns(v: &Vec<String>) -> Vec<Regex> {
     regexes
 }
 
+/// Something was found which isn't allowed.
 struct ProhibitedResult {
     pub line_number: u32,
     pub line: String,
@@ -128,6 +130,40 @@ struct Args {
     config: String,
 }
 
+fn run_with_configuration(config: Configuration) {
+    let mut pass = true;
+
+    let common_patterns = make_patterns(&config.global);
+    for specific in config.specific {
+        let mut patterns = make_patterns(&specific.patterns);
+        for r in common_patterns.iter() {
+            patterns.push(r.clone());
+        }
+
+        for dir in &specific.targets {
+            let path = Path::new(dir.as_str());
+            let walk = WalkBuilder::new(path).build();
+            for d in walk {
+                match d {
+                    Ok(entry) => {
+                        pass &= check_specific(entry, patterns, config.overrule.as_str());
+                    }
+                    Err(err) => {
+                        eprintln!("Error: {:?}", err);
+                    }
+                }
+            }
+        }
+    }
+
+    if pass {
+        exit(0);
+    } else {
+        eprintln!("Check failed.");
+        exit(1);
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -135,29 +171,14 @@ fn main() {
     if let Ok(file) = File::open(&path) {
         let reader = BufReader::new(file);
         let read_result: Result<Configuration> = serde_json::from_reader(reader);
-
-        // Read the configuration.
         if let Ok(configuration) = read_result {
-            let common_patterns = make_patterns(&configuration.global);
-
-            let mut pass = true;
-
-            // Evaluate every specific target.
-            for specific in configuration.specific {
-                pass &=
-                    check_specific(&specific, &common_patterns, configuration.overrule.as_str());
-            }
-
-            if pass {
-                exit(0)
-            } else {
-                eprintln!("Check failed.");
-                exit(1)
-            }
+            run_with_configuration(configuration);
         } else {
             eprintln!("Invalid configuration.");
+            exit(1);
         }
     } else {
         println!("Could not open configuration file {:?}", path);
+        exit(1);
     }
 }
