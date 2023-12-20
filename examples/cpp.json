@@ -1,0 +1,38 @@
+{
+    "overrule": "sample:override_prohibit",
+    "global": [
+        "\\s*#\\s*include\\s*<iostream>",
+        "\\[\\\\]\\s*\\(",
+        "\\[[&]\\\\]",
+        "\\[[=]\\\\]",
+        "\\bfloat\\b",
+        "\\bdouble\\b",
+        "\\bint\\b",
+        "\\bunsigned\\b",
+        "\\blong\\b",
+        "[cC]:[/\\\\]",
+        "[dD]:[/\\\\]",
+        "DONOTCOMMIT"
+    ],
+    "specific": [
+        {
+            "targets": [
+                "src/inner"
+            ],
+            "patterns": [
+                "\\bnamespace outer\\b",
+                "\\bouter::",
+                "\\bnew\\b",
+                "\\bmalloc\\b"
+            ]
+        },
+        {
+            "targets": [
+                "src/outer"
+            ],
+            "patterns": [
+                "\\s*#\\s*include\\s*<windows.h>"
+            ]
+        }
+    ]
+}
